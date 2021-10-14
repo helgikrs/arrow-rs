@@ -521,6 +521,13 @@ fn set_column_for_json_rows(
                 row.insert(col_name.to_string(), serde_json::Value::Object(obj));
             }
         }
+        DataType::Union(_, _) => {
+            let union_array = as_union_array(array);
+
+            for i in 0..union_array.len() {
+                set_column_for_json_rows(&mut rows[i..], 1, &union_array.value(i), col_name);
+            }
+        },
         _ => {
             panic!("Unsupported datatype: {:#?}", array.data_type());
         }
