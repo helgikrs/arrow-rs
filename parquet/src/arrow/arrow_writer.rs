@@ -64,6 +64,7 @@ pub struct ArrowWriter<W: Write> {
 
     /// The length of arrays to write to each row group
     max_row_group_size: usize,
+    min_row_group_size: usize,
 }
 
 impl<W: Write> ArrowWriter<W> {
@@ -83,6 +84,7 @@ impl<W: Write> ArrowWriter<W> {
         add_encoded_arrow_schema_to_metadata(&arrow_schema, &mut props);
 
         let max_row_group_size = props.max_row_group_size();
+        let min_row_group_size = props.min_row_group_size();
 
         let file_writer =
             SerializedFileWriter::new(writer, schema.root_schema_ptr(), Arc::new(props))?;
@@ -93,6 +95,7 @@ impl<W: Write> ArrowWriter<W> {
             buffered_rows: 0,
             arrow_schema,
             max_row_group_size,
+            min_row_group_size,
         })
     }
 
@@ -126,8 +129,8 @@ impl<W: Write> ArrowWriter<W> {
 
     /// Flushes buffered data until there are less than `max_row_group_size` rows buffered
     fn flush_completed(&mut self) -> Result<()> {
-        while self.buffered_rows >= self.max_row_group_size {
-            self.flush_rows(self.max_row_group_size)?;
+        while self.buffered_rows >= self.min_row_group_size {
+            self.flush_rows(self.buffered_rows.min(self.max_row_group_size))?;
         }
         Ok(())
     }
