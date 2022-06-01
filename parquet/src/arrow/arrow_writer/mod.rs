@@ -95,6 +95,7 @@ pub struct ArrowWriter<W: Write> {
 
     /// The length of arrays to write to each row group
     max_row_group_size: usize,
+    min_row_group_size: usize,
 }
 
 impl<W: Write + Send> Debug for ArrowWriter<W> {
@@ -127,6 +128,7 @@ impl<W: Write + Send> ArrowWriter<W> {
         add_encoded_arrow_schema_to_metadata(&arrow_schema, &mut props);
 
         let max_row_group_size = props.max_row_group_size();
+        let min_row_group_size = props.min_row_group_size();
 
         let file_writer =
             SerializedFileWriter::new(writer, schema.root_schema_ptr(), Arc::new(props))?;
@@ -136,6 +138,7 @@ impl<W: Write + Send> ArrowWriter<W> {
             in_progress: None,
             arrow_schema,
             max_row_group_size,
+            min_row_group_size,
         })
     }
 
@@ -166,7 +169,7 @@ impl<W: Write + Send> ArrowWriter<W> {
 
     /// Encodes the provided [`RecordBatch`]
     ///
-    /// If this would cause the current row group to exceed [`WriterProperties::max_row_group_size`]
+    /// If this would cause the current row group to exceed [`WriterProperties::min_row_group_size`]
     /// rows, the contents of `batch` will be written to one or more row groups such that all but
     /// the final row group in the file contain [`WriterProperties::max_row_group_size`] rows
     pub fn write(&mut self, batch: &RecordBatch) -> Result<()> {
@@ -194,7 +197,7 @@ impl<W: Write + Send> ArrowWriter<W> {
 
         in_progress.write(batch)?;
 
-        if in_progress.buffered_rows >= self.max_row_group_size {
+        if in_progress.buffered_rows >= self.min_row_group_size {
             self.flush()?
         }
         Ok(())
