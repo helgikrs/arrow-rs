@@ -323,6 +323,197 @@ impl Statistics {
             Statistics::FixedLenByteArray(_) => Type::FIXED_LEN_BYTE_ARRAY,
         }
     }
+
+    pub fn combine(&self, other: &Statistics)  -> Result<Statistics, String> {
+        if self.is_min_max_deprecated() || other.is_min_max_deprecated() {
+            return Err("cannot combine when min_max_deprecated is set".to_string());
+        }
+        match other {
+            Statistics::Int32(ref typed) => {
+                match self {
+                    Statistics::Int32(ref agg_typed) => {
+                        let new_min = Some(std::cmp::min(*agg_typed.min(), *typed.min()));
+                        let new_max = Some(std::cmp::max(*agg_typed.max(), *typed.max()));
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::int32(new_min, new_max, None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+            Statistics::Int64(ref typed) => {
+                match self {
+                    Statistics::Int64(ref agg_typed) => {
+                        let new_min = Some(std::cmp::min(*agg_typed.min(), *typed.min()));
+                        let new_max = Some(std::cmp::max(*agg_typed.max(), *typed.max()));
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::int64(new_min, new_max, None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+            Statistics::Boolean(ref typed) => {
+                match self {
+                    Statistics::Boolean(ref agg_typed) => {
+                        let new_min = Some(std::cmp::min(*agg_typed.min(), *typed.min()));
+                        let new_max = Some(std::cmp::max(*agg_typed.max(), *typed.max()));
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::boolean(new_min, new_max, None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+            Statistics::Float(ref typed) => {
+                match self {
+                    Statistics::Float(ref agg_typed) => {
+                        // min/max not available because it needs Ord. So we improvise.
+                        let new_min = if *typed.min() < *agg_typed.min() {
+                            *typed.min()
+                        } else {
+                            *agg_typed.min()
+                        };
+                        let new_max = if *typed.max() > *agg_typed.max() {
+                            *typed.max()
+                        } else {
+                            *agg_typed.max()
+                        };
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::float(Some(new_min), Some(new_max), None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+            Statistics::Double(ref typed) => {
+                match self {
+                    Statistics::Double(ref agg_typed) => {
+                        // min/max not available because it needs Ord. So we improvise.
+                        let new_min = if *typed.min() < *agg_typed.min() {
+                            *typed.min()
+                        } else {
+                            *agg_typed.min()
+                        };
+                        let new_max = if *typed.max() > *agg_typed.max() {
+                            *typed.max()
+                        } else {
+                            *agg_typed.max()
+                        };
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::double(Some(new_min), Some(new_max), None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+            Statistics::Int96(ref typed) => {
+                // Note that the documentation says:
+                // INT96 statistics may not be correct, because comparison is signed
+                // byte-wise, not actual timestamps. It is recommended to ignore
+                // min/max statistics for INT96 columns.
+                match self {
+                    Statistics::Int96(ref agg_typed) => {
+                        // min/max not available because it needs Ord. So we improvise.
+                        let new_min = if *typed.min() < *agg_typed.min() {
+                            typed.min().clone()
+                        } else {
+                            agg_typed.min().clone()
+                        };
+                        let new_max = if *typed.max() > *agg_typed.max() {
+                            typed.max().clone()
+                        } else {
+                            agg_typed.max().clone()
+                        };
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::int96(Some(new_min), Some(new_max), None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+            Statistics::FixedLenByteArray(ref typed) => {
+                match self {
+                    Statistics::FixedLenByteArray(ref agg_typed) => {
+                        let my_min: Vec<u8> = agg_typed.min_bytes().into();
+                        let my_min: ByteArray = my_min.into();
+                        let my_min: FixedLenByteArray = my_min.into();
+                        let their_min: Vec<u8> = typed.min_bytes().into();
+                        let their_min: ByteArray = their_min.into();
+                        let their_min: FixedLenByteArray = their_min.into();
+                        let compare = my_min.partial_cmp(&their_min);
+                        let new_min = match compare {
+                            Some(cmp::Ordering::Greater) => their_min,
+                            _ => my_min,
+                        };
+
+                        let my_max: Vec<u8> = agg_typed.max_bytes().into();
+                        let my_max: ByteArray = my_max.into();
+                        let my_max: FixedLenByteArray = my_max.into();
+                        let their_max: Vec<u8> = typed.max_bytes().into();
+                        let their_max: ByteArray = their_max.into();
+                        let their_max: FixedLenByteArray = their_max.into();
+                        let compare = my_max.partial_cmp(&their_max);
+                        let new_max = match compare {
+                            Some(cmp::Ordering::Less) => their_max,
+                            _ => my_max,
+                        };
+
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::fixed_len_byte_array(Some(new_min), Some(new_max), None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+            Statistics::ByteArray(ref typed) => {
+                match self {
+                    Statistics::ByteArray(ref agg_typed) => {
+                        let my_min: Vec<u8> = agg_typed.min_bytes().into();
+                        let my_min: ByteArray = my_min.into();
+                        let their_min: Vec<u8> = typed.min_bytes().into();
+                        let their_min: ByteArray = their_min.into();
+                        let compare = my_min.partial_cmp(&their_min);
+                        let new_min = match compare {
+                            Some(cmp::Ordering::Greater) => their_min,
+                            _ => my_min,
+                        };
+
+                        let my_max: Vec<u8> = agg_typed.max_bytes().into();
+                        let my_max: ByteArray = my_max.into();
+                        let their_max: Vec<u8> = typed.max_bytes().into();
+                        let their_max: ByteArray = their_max.into();
+                        let compare = my_max.partial_cmp(&their_max);
+                        let new_max = match compare {
+                            Some(cmp::Ordering::Less) => their_max,
+                            _ => my_max,
+                        };
+
+                        let new_total = agg_typed.null_count() + typed.null_count();
+                        Ok(
+                            Statistics::byte_array(Some(new_min), Some(new_max), None, new_total, false))
+                    }
+                    _ => {
+                        Err("Cannot combine statistics of a different type.".to_string())
+                    }
+                }
+            },
+        }
+    }
 }
 
 impl fmt::Display for Statistics {
@@ -413,7 +604,7 @@ impl<T: DataType> TypedStatistics<T> {
     }
 
     /// Returns null count.
-    fn null_count(&self) -> u64 {
+    pub fn null_count(&self) -> u64 {
         self.null_count
     }
 
@@ -472,9 +663,55 @@ impl<T: DataType> cmp::PartialEq for TypedStatistics<T> {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_int32_stats_combine() {
+        let stats_1 = Statistics::int32(Some(-123), Some(345), None, 1, false);
+        let stats_2 = Statistics::int32(Some(-130), Some(100), None, 2, false);
+        let stats_3 = Statistics::int32(Some(-150), Some(234), None, 2, false);
+        let result = stats_1.combine(&stats_2).unwrap().combine(&stats_3).unwrap();
+
+        assert_eq!(result, Statistics::int32(Some(-150), Some(345), None, 5, false));
+    }
+
+    #[test]
+    fn test_deprecated_stats_combine() {
+        let stats_1 = Statistics::int32(Some(-123), Some(345), None, 1, true);
+        let stats_2 = Statistics::int32(Some(-150), Some(234), None, 2, false);
+        let result = stats_1.combine(&stats_2);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+
+    fn test_fixed_byte_array_stats_combine() {
+        let stats_1 = Statistics::fixed_len_byte_array(
+            Some(ByteArray::from(vec![1, 2, 3]).into()),
+            Some(ByteArray::from(vec![1, 2, 3]).into()),
+            None,
+            0,
+            false);
+        let stats_2 = Statistics::fixed_len_byte_array(
+            Some(ByteArray::from(vec![3, 2, 1]).into()),
+            Some(ByteArray::from(vec![3, 2, 1]).into()),
+            None,
+            0,
+            false);
+        let result = stats_1.combine(&stats_2).unwrap();
+
+        let expected = Statistics::fixed_len_byte_array(
+            Some(ByteArray::from(vec![1, 2, 3]).into()),
+            Some(ByteArray::from(vec![3, 2, 1]).into()),
+            None,
+            0,
+            false);
+        assert_eq!(result, expected);
+    }
 
     #[test]
     fn test_statistics_min_max_bytes() {

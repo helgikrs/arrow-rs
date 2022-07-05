@@ -982,7 +982,7 @@ mod tests {
             row_group_writer.close()?;
         }
 
-        writer.close()
+        writer.close().map(|(metadata,_)| metadata)
     }
 
     fn get_test_reader(file_name: &str) -> Arc<SerializedFileReader<File>> {
