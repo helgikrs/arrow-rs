@@ -38,6 +38,7 @@ use crate::column::writer::ColumnWriter;
 use crate::errors::{ParquetError, Result};
 use crate::file::metadata::RowGroupMetaDataPtr;
 use crate::file::properties::WriterProperties;
+use crate::file::statistics::Statistics;
 use crate::file::writer::{SerializedColumnWriter, SerializedRowGroupWriter};
 use crate::{data_type::*, file::writer::SerializedFileWriter};
 
@@ -203,7 +204,7 @@ impl<W: Write> ArrowWriter<W> {
     }
 
     /// Close and finalize the underlying Parquet writer
-    pub fn close(mut self) -> Result<parquet_format::FileMetaData> {
+    pub fn close(mut self) -> Result<(parquet_format::FileMetaData, Vec<Option<Statistics>>)> {
         self.flush()?;
         self.writer.close()
     }

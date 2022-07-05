@@ -32,12 +32,17 @@ use crate::column::{
 };
 use crate::data_type::DataType;
 use crate::errors::{ParquetError, Result};
+use crate::file::statistics::Statistics;
 use crate::file::{
     metadata::*, properties::WriterPropertiesPtr,
     statistics::to_thrift as statistics_to_thrift, FOOTER_SIZE, PARQUET_MAGIC,
 };
 use crate::schema::types::{self, SchemaDescPtr, SchemaDescriptor, TypePtr};
 use crate::util::io::TryClone;
+
+
+
+
 
 /// A wrapper around a [`Write`] that keeps track of the number
 /// of bytes that have been written
@@ -165,10 +170,46 @@ impl<W: Write> SerializedFileWriter<W> {
     ///
     /// Can be called multiple times. It is up to implementation to either result in
     /// no-op, or return an `Err` for subsequent calls.
-    pub fn close(mut self) -> Result<parquet::FileMetaData> {
+    pub fn close(mut self) -> Result<(parquet::FileMetaData, Vec<Option<Statistics>>)> {
         self.assert_previous_writer_closed()?;
-        let metadata = self.write_metadata()?;
-        Ok(metadata)
+        let file_metadata = self.write_metadata()?;
+
+        let column_counts: Vec<usize> = self.row_groups.iter().map(|x| x.num_columns()).collect();
+        let column_count = *(column_counts.iter().max().unwrap_or(&0));
+        // If we added a column in the middle, there's no hope for stats.
+        assert!(column_counts.iter().min() == Some(&column_count));
+        let mut all_aggregate_statistics: Vec<Option<Statistics>> = vec![];
+        for i in 0..column_count {
+            let mut my_aggregated_statistic: Option<Statistics> = None;
+            for row_group in self.row_groups.iter() {
+                
+                let stats = row_group.columns()[i].statistics();
+                if my_aggregated_statistic.is_none() {
+                    my_aggregated_statistic = stats.cloned();
+                    continue;
+                }
+                match stats {
+                    None => {
+                        // Missing one block of stats means we can't have aggregate stats.
+                        my_aggregated_statistic = None;
+                        break;
+                    },
+                    Some(a_stat) => {
+                        // Safety: check for my_aggregated_statistic = None before this match.
+                        match my_aggregated_statistic.unwrap().combine(a_stat) {
+                            Err(why) => {
+                                panic!("Cannot aggregate statistics for column {}: {}", i, why);
+                            },
+                            Ok(result) => {
+                                my_aggregated_statistic = Some(result);
+                            }
+                        }
+                    }
+                }
+            }
+            all_aggregate_statistics.push(my_aggregated_statistic);
+        }
+        Ok((file_metadata, all_aggregate_statistics))
     }
 
     /// Writes magic bytes at the beginning of the file.
