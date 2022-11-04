@@ -268,6 +268,12 @@ impl<'a> PrimitiveTypeBuilder<'a> {
         self
     }
 
+    /// Sets optional field id and returns itself.
+    pub fn with_option_id(mut self, id: Option<i32>) -> Self {
+        self.id = id;
+        self
+    }
+
     /// Creates a new `PrimitiveType` instance from the collected attributes.
     /// Returns `Err` in case of any building conditions are not met.
     pub fn build(self) -> Result<Type> {
@@ -581,6 +587,12 @@ impl<'a> GroupTypeBuilder<'a> {
     /// Sets optional field id and returns itself.
     pub fn with_id(mut self, id: i32) -> Self {
         self.id = Some(id);
+        self
+    }
+
+    /// Sets optional field id and returns itself.
+    pub fn with_option_id(mut self, id: Option<i32>) -> Self {
+        self.id = id;
         self
     }
 
