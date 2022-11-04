@@ -238,6 +238,10 @@ pub fn decimal_length_from_precision(precision: u8) -> usize {
 
 /// Convert an arrow field to a parquet `Type`
 fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
+    let id = (|| {
+        field.metadata()?.get("field-id")?.parse::<i32>().ok()
+    })();
+
     let name = field.name().as_str();
     let repetition = if field.is_nullable() {
         Repetition::OPTIONAL
@@ -249,9 +253,11 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
         DataType::Null => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Unknown))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Boolean => Type::primitive_type_builder(name, PhysicalType::BOOLEAN)
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Int8 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Integer {
@@ -259,6 +265,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 is_signed: true,
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Int16 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Integer {
@@ -266,12 +273,15 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 is_signed: true,
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Int32 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Int64 => Type::primitive_type_builder(name, PhysicalType::INT64)
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::UInt8 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Integer {
@@ -279,6 +289,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 is_signed: false,
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::UInt16 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Integer {
@@ -286,6 +297,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 is_signed: false,
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::UInt32 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Integer {
@@ -293,6 +305,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 is_signed: false,
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::UInt64 => Type::primitive_type_builder(name, PhysicalType::INT64)
             .with_logical_type(Some(LogicalType::Integer {
@@ -300,18 +313,22 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 is_signed: false,
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Float16 => Err(arrow_err!("Float16 arrays not supported")),
         DataType::Float32 => Type::primitive_type_builder(name, PhysicalType::FLOAT)
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Float64 => Type::primitive_type_builder(name, PhysicalType::DOUBLE)
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Timestamp(TimeUnit::Second, _) => {
             // Cannot represent seconds in LogicalType
             Type::primitive_type_builder(name, PhysicalType::INT64)
                 .with_repetition(repetition)
+                .with_option_id(id)
                 .build()
         }
         DataType::Timestamp(time_unit, tz) => {
@@ -333,21 +350,25 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                     },
                 }))
                 .with_repetition(repetition)
+                .with_option_id(id)
                 .build()
         }
         DataType::Date32 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Date))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         // date64 is cast to date32 (#1666)
         DataType::Date64 => Type::primitive_type_builder(name, PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Date))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Time32(TimeUnit::Second) => {
             // Cannot represent seconds in LogicalType
             Type::primitive_type_builder(name, PhysicalType::INT32)
                 .with_repetition(repetition)
+                .with_option_id(id)
                 .build()
         }
         DataType::Time32(unit) => Type::primitive_type_builder(name, PhysicalType::INT32)
@@ -359,6 +380,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 },
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Time64(unit) => Type::primitive_type_builder(name, PhysicalType::INT64)
             .with_logical_type(Some(LogicalType::Time {
@@ -370,6 +392,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 },
             }))
             .with_repetition(repetition)
+            .with_option_id(id)
             .build(),
         DataType::Duration(_) => {
             Err(arrow_err!("Converting Duration to parquet not supported",))
@@ -379,17 +402,20 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 .with_converted_type(ConvertedType::INTERVAL)
                 .with_repetition(repetition)
                 .with_length(12)
+                .with_option_id(id)
                 .build()
         }
         DataType::Binary | DataType::LargeBinary => {
             Type::primitive_type_builder(name, PhysicalType::BYTE_ARRAY)
                 .with_repetition(repetition)
+                .with_option_id(id)
                 .build()
         }
         DataType::FixedSizeBinary(length) => {
             Type::primitive_type_builder(name, PhysicalType::FIXED_LEN_BYTE_ARRAY)
                 .with_repetition(repetition)
                 .with_length(*length)
+                .with_option_id(id)
                 .build()
         }
         DataType::Decimal128(precision, scale)
@@ -416,12 +442,14 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 }))
                 .with_precision(*precision as i32)
                 .with_scale(*scale as i32)
+                .with_option_id(id)
                 .build()
         }
         DataType::Utf8 | DataType::LargeUtf8 => {
             Type::primitive_type_builder(name, PhysicalType::BYTE_ARRAY)
                 .with_logical_type(Some(LogicalType::String))
                 .with_repetition(repetition)
+                .with_option_id(id)
                 .build()
         }
         DataType::List(f) | DataType::FixedSizeList(f, _) | DataType::LargeList(f) => {
@@ -430,10 +458,12 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                     Type::group_type_builder("list")
                         .with_fields(&mut vec![Arc::new(arrow_to_parquet_type(f)?)])
                         .with_repetition(Repetition::REPEATED)
+                .with_option_id(id)
                         .build()?,
                 )])
                 .with_logical_type(Some(LogicalType::List))
                 .with_repetition(repetition)
+                .with_option_id(id)
                 .build()
         }
         DataType::Struct(fields) => {
@@ -450,6 +480,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
             Type::group_type_builder(name)
                 .with_fields(&mut fields?)
                 .with_repetition(repetition)
+                .with_option_id(id)
                 .build()
         }
         DataType::Map(field, _) => {
@@ -462,18 +493,19 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                                     struct_fields[0].name(),
                                     struct_fields[0].data_type().clone(),
                                     false,
-                                ))?),
+                                ).with_metadata(struct_fields[0].metadata().cloned()))?),
                                 Arc::new(arrow_to_parquet_type(&Field::new(
                                     struct_fields[1].name(),
                                     struct_fields[1].data_type().clone(),
                                     struct_fields[1].is_nullable(),
-                                ))?),
+                                ).with_metadata(struct_fields[1].metadata().cloned()))?),
                             ])
                             .with_repetition(Repetition::REPEATED)
                             .build()?,
                     )])
                     .with_logical_type(Some(LogicalType::Map))
                     .with_repetition(repetition)
+                    .with_option_id(id)
                     .build()
             } else {
                 Err(arrow_err!(
