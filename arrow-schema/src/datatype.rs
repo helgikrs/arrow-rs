@@ -353,10 +353,11 @@ impl DataType {
                             && a.data_type().equals_datatype(b.data_type())
                     })
             }
-            (
-                DataType::Map(a_field, a_is_sorted),
-                DataType::Map(b_field, b_is_sorted),
-            ) => a_field == b_field && a_is_sorted == b_is_sorted,
+            (DataType::Map(a, a_is_sorted), DataType::Map(b, b_is_sorted)) => {
+                a.is_nullable() == b.is_nullable()
+                    && a.data_type().equals_datatype(b.data_type())
+                    && a_is_sorted == b_is_sorted
+            }
             _ => self == other,
         }
     }
