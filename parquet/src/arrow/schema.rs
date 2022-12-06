@@ -246,7 +246,7 @@ pub fn decimal_length_from_precision(precision: u8) -> usize {
 /// Convert an arrow field to a parquet `Type`
 fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
     let id = (|| {
-        field.metadata()?.get("field-id")?.parse::<i32>().ok()
+        field.metadata().get("field-id")?.parse::<i32>().ok()
     })();
 
     let name = field.name().as_str();
@@ -500,12 +500,12 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                                     struct_fields[0].name(),
                                     struct_fields[0].data_type().clone(),
                                     false,
-                                ).with_metadata(struct_fields[0].metadata().cloned()))?),
+                                ).with_metadata(struct_fields[0].metadata().clone()))?),
                                 Arc::new(arrow_to_parquet_type(&Field::new(
                                     struct_fields[1].name(),
                                     struct_fields[1].data_type().clone(),
                                     struct_fields[1].is_nullable(),
-                                ).with_metadata(struct_fields[1].metadata().cloned()))?),
+                                ).with_metadata(struct_fields[1].metadata().clone()))?),
                             ])
                             .with_repetition(Repetition::REPEATED)
                             .build()?,
@@ -524,7 +524,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
         DataType::Dictionary(_, ref value) => {
             // Dictionary encoding not handled at the schema level
             let dict_field = Field::new(name, *value.clone(), field.is_nullable())
-                .with_metadata(field.metadata().cloned());
+                .with_metadata(field.metadata().clone());
             arrow_to_parquet_type(&dict_field)
         }
     }
