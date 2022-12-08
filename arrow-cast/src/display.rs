@@ -471,6 +471,21 @@ pub fn array_value_to_string(
 
             Ok(s)
         }
+        DataType::Map(_, _) => {
+            let map = column
+                .as_any()
+                .downcast_ref::<array::MapArray>()
+                .ok_or_else(|| {
+                    ArrowError::InvalidArgumentError(
+                        "Repl error: could not convert map column to map array."
+                            .to_string(),
+                    )
+                })?;
+
+            let value = map.value(row);
+
+            array_value_to_string(&value, row)
+        },
         DataType::Union(field_vec, type_ids, mode) => {
             union_to_string(column, row, field_vec, type_ids, mode)
         }
