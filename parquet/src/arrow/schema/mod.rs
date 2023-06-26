@@ -449,6 +449,7 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                 }))
                 .with_precision(*precision as i32)
                 .with_scale(*scale as i32)
+                .with_option_id(id)
                 .build()
         }
         DataType::Decimal256(precision, scale) => {
@@ -478,7 +479,6 @@ fn arrow_to_parquet_type(field: &Field) -> Result<Type> {
                     Type::group_type_builder("list")
                         .with_fields(&mut vec![Arc::new(arrow_to_parquet_type(f)?)])
                         .with_repetition(Repetition::REPEATED)
-                .with_option_id(id)
                         .build()?,
                 )])
                 .with_logical_type(Some(LogicalType::List))
