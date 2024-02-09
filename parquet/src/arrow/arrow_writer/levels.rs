@@ -132,7 +132,7 @@ enum LevelInfoBuilder {
 impl LevelInfoBuilder {
     /// Create a new [`LevelInfoBuilder`] for the given [`Field`] and parent [`LevelContext`]
     fn try_new(field: &Field, parent_ctx: LevelContext, array: &ArrayRef) -> Result<Self> {
-        assert_eq!(field.data_type(), array.data_type());
+        assert!(field.data_type().equals_datatype(array.data_type()));
         let is_nullable = field.is_nullable();
 
         match array.data_type() {
